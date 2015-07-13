@@ -55,18 +55,29 @@ func (k keyword) Preview(s string) string {
 	}
 	return a
 }
-
+func splitQuery(input string) (string, string) {
+	base := input[:strings.LastIndex(input, ".")]
+	last := input[strings.LastIndex(input, "."):]
+	return base, last
+}
 func redraw_all() {
 	const coldef = termbox.ColorDefault
 	termbox.Clear(coldef, coldef)
-	input.Draw()
 	jq := gq.NewJQ()
 
 	fp, _ := os.Open(os.Args[1])
 	text, _ := ioutil.ReadAll(fp)
+	base, query := splitQuery(string(input.Text))
 	result, _ := jq.Parse(string(text), string(input.Text))
-	debug := "" //pp.Sprint(result)
-	left.SetJv(result[0])
+	debug := query //pp.Sprint(err) //pp.Sprint(result)
+	if len(result) > 0 && result[0].Kind() != gq.KIND_NULL {
+		left.SetJv(result[0])
+	} else {
+		result, _ = jq.Parse(string(text), base)
+		if len(result) > 0 {
+			left.SetJv(result[0])
+		}
+	}
 	left.Draw()
 
 	//debug := ""
@@ -83,22 +94,25 @@ func redraw_all() {
 		}
 
 		result, err := jq.Parse(string(text), q+" | keys")
-		debug += fmt.Sprintf("%s\n %s %s\n", result, q, err)
-		//debug += fmt.Sprintf("%s", err)
-		var s []gq.Jv = gq.JvArray(result[0]).Array()
-		sort.Sort(Like{s: &s, target: b})
+		//debug += fmt.Sprintf("%s\n %s %s\n", result, q, err)
+		if err == nil {
 
-		text := fmt.Sprintf("expr: %s, query: %s", q, b)
+			s := gq.JvArray(result[0]).Array()
+			sort.Sort(Like{s: &s, target: b})
 
-		//text += "["
-		for _, k := range s {
-			//text += string(k)
-			debug += fmt.Sprintf("%3.3f %s\n", textdistance.JaroWinklerDistance(gq.JvString(k).StringValue(), b), gq.JvString(k).StringValue())
-			//debug += k.Preview(b)
-			//text += " "
+			text := fmt.Sprintf("expr: %s, query: %s", q, b)
+
+			input.Suggest = []rune(gq.JvString(s[0]).StringValue())
+			//text += "["
+			for _, k := range s {
+				//text += string(k)
+				debug += fmt.Sprintf("%3.3f %s\n", textdistance.JaroWinklerDistance(gq.JvString(k).StringValue(), b), gq.JvString(k).StringValue())
+				//debug += k.Preview(b)
+				//text += " "
+			}
+			//text += "]"
+			suggest.SetText(text)
 		}
-		//text += "]"
-		suggest.SetText(text)
 	} else {
 		suggest.SetText("nothing")
 	}
@@ -106,6 +120,7 @@ func redraw_all() {
 	right.Draw()
 	suggest.Draw()
 
+	input.Draw()
 	termbox.Flush()
 }
 
@@ -151,7 +166,8 @@ mainloop:
 			case termbox.KeyDelete, termbox.KeyCtrlD:
 				//	input.DeleteRuneForward()
 			case termbox.KeyTab:
-				input.InsertRune('\t')
+				ilen := strings.LastIndex(string(input.Text), ".") + 1
+				input.Text = append(input.Text[:ilen], input.Suggest...)
 			case termbox.KeySpace:
 				input.InsertRune(' ')
 			case termbox.KeyCtrlK:

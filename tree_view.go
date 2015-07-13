@@ -57,9 +57,8 @@ func (tv TreeView) Draw() {
 
 func (r *rend) newCol() {
 	r.x++
-	if r.x > r.w {
+	if r.x >= r.w {
 		r.newLine()
-		r.x -= r.w
 	}
 }
 
